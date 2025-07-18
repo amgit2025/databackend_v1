@@ -1370,14 +1370,21 @@ if st.button("🧮 Generate Sentiment Table"):
                 continue
             sentiments = df[sentiment_model].dropna().str.lower().tolist()
             counts = collections.Counter(sentiments)
-            if not counts:
+            total = sum(counts.values())
+            if not counts or total == 0:
                 result_rows.append({"Symbol": symbol, "Sentiment": "N/A (no data)"})
                 continue
-            max_count = max(counts.values())
-            most_common = [k for k, v in counts.items() if v == max_count]
-            if len(most_common) == 1:
-                overall = most_common[0]
+            pos_pct = counts.get("positive", 0) / total
+            neg_pct = counts.get("negative", 0) / total
+            # Classify: positive if >= 70%, negative if >= 30%, else neutral
+            if pos_pct > 0.7:
+                overall = "positive"
+            elif neg_pct >= 0.3:
+                overall = "negative"
             else:
+                overall = "neutral"
+            # If exactly 70% positive and 30% negative, neutral
+            if abs(pos_pct - 0.7) < 1e-6 and abs(neg_pct - 0.3) < 1e-6:
                 overall = "neutral"
             result_rows.append({"Symbol": symbol, "Sentiment": overall})
         except Exception as e:
