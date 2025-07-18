@@ -452,7 +452,7 @@ def process_content_worker(worker_id: int, article_batch: List[Dict], api_key: s
             result = fetch_article_content(article_id, api_key)
             
             if result["error"]:
-                status_queue.put(f"Worker {worker_id}: ❌ Content failed for {article_id}: {result['error']}")
+                status_queue.put(f"Worker {worker_id}: Content failed for {article_id}: {result['error']}")
                 article['content'] = f"Error: {result['error']}"
                 article['content_status'] = "failed"
             else:
