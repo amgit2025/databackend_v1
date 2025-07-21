@@ -298,7 +298,6 @@ def process_company_worker(worker_id: int, companies: List[str], start_date, end
             if st.session_state.get(filter_key):
                 status_queue.put(f"Worker {worker_id}: Filtering canceled for {company['compname']}")
                 # Save all tweets as good (skip filtering)
-                # Process results for this company
                 if company_success and all_company_tweets:
                     # Remove duplicates by tweet_id
                     unique_tweets = {}
@@ -307,54 +306,46 @@ def process_company_worker(worker_id: int, companies: List[str], start_date, end
                         if tweet_id and tweet_id not in unique_tweets:
                             tweet["company_name"] = company['compname']
                             unique_tweets[tweet_id] = tweet
-                    
                     final_tweets = list(unique_tweets.values())
-                    
-                    # Save company JSON
-                    company_json_path = os.path.join(output_dirs["company_json"], f"{company['compname'].replace(' ', '_')}.json")
+                    # Save as CSV
+                    good_tweets_path = os.path.join(output_dirs["company_csv"], f"{company['compname'].replace(' ', '_')}_good_tweets.csv")
                     try:
-                        with open(company_json_path, "w", encoding="utf-8") as f:
-                            json.dump({"company": company['compname'], "total_tweets": len(final_tweets), "results": final_tweets}, f, indent=2)
-                        status_queue.put(f"Worker {worker_id}: 💾 Saved {company['compname']}.json with {len(final_tweets)} tweets")
+                        df = pd.DataFrame(final_tweets)
+                        df.to_csv(good_tweets_path, index=False)
+                        status_queue.put(f"Worker {worker_id}: 💾 Saved {company['compname']}_good_tweets.csv with {len(final_tweets)} tweets")
                     except Exception as e:
-                        status_queue.put(f"Worker {worker_id}: ❌ Error saving {company['compname']}.json: {e}")
+                        status_queue.put(f"Worker {worker_id}: ❌ Error saving {company['compname']}_good_tweets.csv: {e}")
                         company_success = False
-                    
                     if company_success:
                         status_queue.put(f"Worker {worker_id}: ✅ Company {company['compname']} completed - {len(final_tweets)} unique tweets")
                         result_queue.put(("success", company['compname'], len(final_tweets)))
                     else:
                         status_queue.put(f"Worker {worker_id}: ❌ Company {company['compname']} failed during save")
                         result_queue.put(("failed", company['compname'], 0))
-                    
                 else:
                     status_queue.put(f"Worker {worker_id}: ❌ Company {company['compname']} failed")
                     result_queue.put(("failed", company['compname'], 0))
-                
             else:
                 # Proceed with zero-shot filtering
                 good, bad = filter_tweets_zero_shot(all_company_tweets, company['compname'])
-                
-                # Save good tweets
-                good_tweets_path = os.path.join(output_dirs["company_json"], f"{company['compname'].replace(' ', '_')}_good_tweets.json")
+                # Save good tweets as CSV
+                good_tweets_path = os.path.join(output_dirs["company_csv"], f"{company['compname'].replace(' ', '_')}_good_tweets.csv")
                 try:
-                    with open(good_tweets_path, "w", encoding="utf-8") as f:
-                        json.dump({"company": company['compname'], "total_tweets": len(good), "results": good}, f, indent=2)
-                    status_queue.put(f"Worker {worker_id}: 💾 Saved {company['compname']}_good_tweets.json with {len(good)} good tweets")
+                    df_good = pd.DataFrame(good)
+                    df_good.to_csv(good_tweets_path, index=False)
+                    status_queue.put(f"Worker {worker_id}: 💾 Saved {company['compname']}_good_tweets.csv with {len(good)} good tweets")
                 except Exception as e:
-                    status_queue.put(f"Worker {worker_id}: ❌ Error saving {company['compname']}_good_tweets.json: {e}")
+                    status_queue.put(f"Worker {worker_id}: ❌ Error saving {company['compname']}_good_tweets.csv: {e}")
                     company_success = False
-                
-                # Save bad tweets
-                bad_tweets_path = os.path.join(output_dirs["company_json"], f"{company['compname'].replace(' ', '_')}_bad_tweets.json")
+                # Save bad tweets as CSV
+                bad_tweets_path = os.path.join(output_dirs["company_csv"], f"{company['compname'].replace(' ', '_')}_bad_tweets.csv")
                 try:
-                    with open(bad_tweets_path, "w", encoding="utf-8") as f:
-                        json.dump({"company": company['compname'], "total_tweets": len(bad), "results": bad}, f, indent=2)
-                    status_queue.put(f"Worker {worker_id}: 💾 Saved {company['compname']}_bad_tweets.json with {len(bad)} bad tweets")
+                    df_bad = pd.DataFrame(bad)
+                    df_bad.to_csv(bad_tweets_path, index=False)
+                    status_queue.put(f"Worker {worker_id}: 💾 Saved {company['compname']}_bad_tweets.csv with {len(bad)} bad tweets")
                 except Exception as e:
-                    status_queue.put(f"Worker {worker_id}: ❌ Error saving {company['compname']}_bad_tweets.json: {e}")
+                    status_queue.put(f"Worker {worker_id}: ❌ Error saving {company['compname']}_bad_tweets.csv: {e}")
                     company_success = False
-                
                 if company_success:
                     status_queue.put(f"Worker {worker_id}: ✅ Company {company['compname']} completed - {len(good)} good tweets, {len(bad)} bad tweets")
                     result_queue.put(("success", company['compname'], len(good)))
